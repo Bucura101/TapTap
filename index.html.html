@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TapTap Attendance with Web NFC</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes bounce-in {
+      0% { transform: scale(0.8); opacity: 0; }
+      60% { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(1); }
+    }
+    .animate-bounce-in {
+      animation: bounce-in 0.6s ease-out;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 flex flex-col items-center space-y-6">
+
+  <!-- Box 1: Tap Interface -->
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-5 text-center">
+
+    <h1 class="text-3xl font-bold text-purple-700">TapTap</h1>
+    <p class="text-sm text-gray-500">Smart Attendance System</p>
+
+    <div id="scan-area" class="border-2 border-dashed border-purple-500 p-6 rounded-xl animate-bounce-in">
+      <p id="status" class="text-purple-600 font-semibold">Waiting for NFC tag...</p>
+    </div>
+
+    <button
+      id="tap-btn"
+      class="bg-purple-700 text-white px-6 py-2 rounded-full hover:bg-purple-800 transition w-full"
+    >
+      Tap to Scan (Simulate)
+    </button>
+
+    <button
+      id="nfc-btn"
+      class="mt-3 bg-green-600 text-white px-6 py-2 rounded-full hover:bg-green-700 transition w-full"
+    >
+      Scan Real NFC Card (Android Chrome only)
+    </button>
+
+    <!-- + Button Below Box -->
+    <div>
+      <button
+        onclick="alert('Feature coming soon: Add Student / Settings')"
+        class="text-purple-700 text-2xl font-bold hover:text-purple-900 mt-4"
+        title="Coming Soon"
+      >＋</button>
+    </div>
+
+  </div>
+
+  <!-- Box 2: Attendance Table -->
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 space-y-4">
+
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-bold text-gray-700">Recent Attendance</h2>
+    </div>
+
+    <div class="overflow-x-auto border rounded-lg bg-gray-50 max-h-72 overflow-y-auto">
+      <table class="min-w-full text-sm text-left">
+        <thead class="bg-purple-100 text-purple-800 font-semibold sticky top-0">
+          <tr>
+            <th class="px-3 py-2">#</th>
+            <th class="px-3 py-2">Name</th>
+            <th class="px-3 py-2">Reg No</th>
+            <th class="px-3 py-2">Faculty</th>
+            <th class="px-3 py-2">Check-In</th>
+            <th class="px-3 py-2">Check-Out</th>
+            <th class="px-3 py-2">Status</th>
+            <th class="px-3 py-2">UID</th>
+          </tr>
+        </thead>
+        <tbody id="attendance-body" class="text-gray-700">
+          <!-- Records go here -->
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script>
+    const attendanceBody = document.getElementById('attendance-body');
+    const statusBox = document.getElementById('status');
+    const tapBtn = document.getElementById('tap-btn');
+    const nfcBtn = document.getElementById('nfc-btn');
+
+    // Simulated student database with unique UIDs
+    const students = [
+      { uid: "04A3F19B", name: "Kamanzi Alex", reg: "UNL2025-001", faculty: "ICT" },
+      { uid: "04B7D55C", name: "Uwase Diane", reg: "UNL2025-002", faculty: "Business" },
+      { uid: "04C8E11D", name: "Mugisha Eric", reg: "UNL2025-003", faculty: "Nursing" },
+      { uid: "04D9F44E", name: "Iradukunda Bella", reg: "UNL2025-004", faculty: "ICT" },
+      { uid: "04E0123F", name: "Hategekimana John", reg: "UNL2025-005", faculty: "Law" },
+      { uid: "04F1345A", name: "Niyonsenga Liza", reg: "UNL2025-006", faculty: "ICT" },
+      { uid: "0412789B", name: "Turatsinze Kevin", reg: "UNL2025-007", faculty: "Agro" },
+      { uid: "042389AC", name: "Mukamana Sarah", reg: "UNL2025-008", faculty: "Education" },
+      { uid: "04349BAD", name: "Nshimiyimana Junior", reg: "UNL2025-009", faculty: "ICT" },
+      { uid: "0445ACBE", name: "Umutesi Alice", reg: "UNL2025-010", faculty: "Business" }
+    ];
+
+    // Load attendance log from localStorage or initialize empty array
+    let attendanceLog = JSON.parse(localStorage.getItem('attendanceLog')) || [];
+
+    // Save attendance log to localStorage
+    function saveLog() {
+      localStorage.setItem('attendanceLog', JSON.stringify(attendanceLog));
+    }
+
+    // Format time for display
+    function formatTime(date) {
+      return date.toLocaleTimeString();
+    }
+
+    // Render table rows based on attendanceLog
+    function renderTable() {
+      attendanceBody.innerHTML = "";
+      attendanceLog.forEach((entry, index) => {
+        attendanceBody.innerHTML += `
+          <tr class="hover:bg-gray-100">
+            <td class="px-3 py-2 font-medium">${index + 1}</td>
+            <td class="px-3 py-2">${entry.name}</td>
+            <td class="px-3 py-2">${entry.reg}</td>
+            <td class="px-3 py-2">${entry.faculty}</td>
+            <td class="px-3 py-2">${entry.checkIn || '-'}</td>
+            <td class="px-3 py-2">${entry.checkOut || '-'}</td>
+            <td class="px-3 py-2 font-semibold ${entry.checkOut ? 'text-red-600' : 'text-green-600'}">
+              ${entry.checkOut ? 'Checked Out' : 'Checked In'}
+            </td>
+            <td class="px-3 py-2 font-mono">${entry.uid}</td>
+          </tr>
+        `;
+      });
+    }
+
+    // Handle tap simulation (random student)
+    function handleTap() {
+      const student = students[Math.floor(Math.random() * students.length)];
+      processTap(student.uid);
+    }
+
+    // Process a tap by UID
+    function processTap(uid) {
+      const now = new Date();
+      const timeStr = formatTime(now);
+      const dateStr = now.toLocaleDateString();
+
+      // Find student from uid in student DB
+      const student = students.find(s => s.uid === uid);
+      if (!student) {
+        statusBox.innerHTML = `<span class="text-red-600 font-bold">❌ Unknown card UID: ${uid}</span>`;
+        return;
+      }
+
+      let record = attendanceLog.find(r => r.uid === uid);
+
+      if (!record) {
+        // New check-in
+        record = {
+          uid: uid,
+          name: student.name,
+          reg: student.reg,
+          faculty: student.faculty,
+          checkIn: `${timeStr}, ${dateStr}`,
+          checkOut: null
+        };
+        attendanceLog.unshift(record);
+        statusBox.innerHTML = `<span class="text-green-600 font-bold text-lg">✅ Checked In</span><br><span class="text-sm text-gray-500">${student.name} at ${timeStr}</span>`;
+      } else if (!record.checkOut) {
+        // Check out
+        record.checkOut = `${timeStr}, ${dateStr}`;
+        statusBox.innerHTML = `<span class="text-red-600 font-bold text-lg">❌ Checked Out</span><br><span class="text-sm text-gray-500">${student.name} at ${timeStr}</span>`;
+      } else {
+        // New session - reset check-in
+        record.checkIn = `${timeStr}, ${dateStr}`;
+        record.checkOut = null;
+        statusBox.innerHTML = `<span class="text-green-600 font-bold text-lg">✅ Checked In (New Session)</span><br><span class="text-sm text-gray-500">${student.name} at ${timeStr}</span>`;
+      }
+
+      saveLog();
+      renderTable();
+    }
+
+    // Web NFC scanning function
+    async function scanNFC() {
+      if ('NDEFReader' in window) {
+        try {
+          const ndef = new NDEFReader();
+          await ndef.scan();
+          statusBox.innerHTML = '<span class="text-purple-700 font-semibold">Scanning NFC... Tap your card now.</span>';
+          ndef.onreading = event => {
+            const uid = event.serialNumber || event.message.records[0]?.data || 'Unknown UID';
+            processTap(uid);
+          };
+          ndef.onreadingerror = () => {
+            statusBox.innerHTML = '<span class="text-red-600 font-bold">❌ NFC reading error. Try again.</span>';
+          };
+        } catch (error) {
+          statusBox.innerHTML = `<span class="text-red-600 font-bold">❌ NFC scan failed: ${error.message}</span>`;
+        }
+      } else {
+        alert('Web NFC API not supported on this browser/device.');
+      }
+    }
+
+    // Attach events
+    tapBtn.addEventListener('click', handleTap);
+    nfcBtn.addEventListener('click', scanNFC);
+
+    // Initial render
+    renderTable();
+  </script>
+
+</body>
+</html>
